@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "registry-gate.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "registry-gate.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      listen: "0.0.0.0:8080"
+      metrics_listen: "0.0.0.0:9090"
+      external_url: {{ printf "https://%s" .Values.hostname | quote }}
+      trusted_proxies:
+      {{- range .Values.trustedProxies }}
+        - {{ . | quote }}
+      {{- end }}
+      request_timeout: 15s
+
+    harbor:
+      base_url: {{ .Values.harbor.baseUrl | quote }}
+      token_path: "/service/token"
+      insecure_skip_verify: false
+
+    gate:
+      path: "/service/token"
+      anonymous:
+        enabled: {{ .Values.gate.anonymous.enabled }}
+      anonymous_registry_scopes: deny
+      auth_failure_limit:
+        per_ip: 20/min
+        per_username: 10/min
+      fail_mode: closed
+      deny_message: {{ .Values.gate.denyMessage | quote }}
+      login_failed_message: {{ .Values.gate.loginFailedMessage | quote }}
+
+    whitelist:
+      files:
+      {{- range $name, $content := .Values.whitelist.files }}
+        - /etc/registry-gate/whitelist/{{ $name }}
+      {{- end }}
+      inline: []
+      reload: true
+
+    projects:
+      map:
+      {{- range $project, $host := .Values.projects.map }}
+        {{ $project }}: {{ $host }}
+      {{- end }}
+
+    auth:
+      token:
+        issuer: {{ .Values.auth.token.issuer | quote }}
+        default_ttl: {{ .Values.auth.token.defaultTtl | quote }}
+        max_ttl: {{ .Values.auth.token.maxTtl | quote }}
+
+    storage:
+      sqlite:
+        path: "/var/lib/registry-gate/gate.db"
+      usage_retention: {{ .Values.storage.usageRetention | quote }}
+
+    portal:
+      enabled: {{ .Values.portal.enabled }}
+      base_path: {{ .Values.portal.basePath | quote }}
+      sso:
+        oidc:
+          issuer: {{ .Values.portal.oidc.issuer | quote }}
+          client_id: {{ .Values.portal.oidc.clientId | quote }}
+          client_secret: "${GATE_GITLAB_CLIENT_SECRET}"
+          {{- with .Values.portal.oidc.redirectUri }}
+          redirect_uri: {{ . | quote }}
+          {{- end }}
+          scopes:
+          {{- range .Values.portal.oidc.scopes }}
+            - {{ . | quote }}
+          {{- end }}
+      max_tokens_per_user: {{ .Values.portal.maxTokensPerUser }}
+
+    admin:
+      enabled: {{ .Values.admin.enabled }}
+      base_path: {{ .Values.admin.basePath | quote }}
+      github:
+        client_id: {{ .Values.admin.github.clientId | quote }}
+        client_secret: "${GATE_GITHUB_CLIENT_SECRET}"
+        allowed_users:
+        {{- range .Values.admin.github.allowedUsers }}
+          - {{ . | quote }}
+        {{- end }}
+        allowed_orgs:
+        {{- range .Values.admin.github.allowedOrgs }}
+          - {{ . | quote }}
+        {{- end }}
+
+    log:
+      level: info
+      format: json
+  {{- range $name, $content := .Values.whitelist.files }}
+  {{ $name }}: |
+    {{- $content | nindent 4 }}
+  {{- end }}

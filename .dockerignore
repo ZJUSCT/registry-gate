@@ -1,0 +1,5 @@
+.git
+charts
+*.db
+*.db-*
+run/

@@ -1,0 +1,112 @@
+# registry-gate configuration (v0.4)
+#
+# Every string value supports ${NAME} environment-variable substitution
+# (whole-value or embedded); unset variables are a startup error. Secrets
+# are injected this way (e.g. from Kubernetes Secret env vars) - there are
+# no *_file indirections. Session-cookie secrets are not configured at
+# all: they are generated on first start and stored in the sqlite DB.
+# Single binary, single replica (sqlite). Two roles by path:
+#   gate   —— {external_url}/service/token  (routed here by Envoy Gateway)
+#   portal —— {external_url}/token          (campus GitLab OIDC, PAT self-service)
+#   admin  —— {external_url}/admin          (GitHub OAuth, admin panel)
+
+server:
+  listen: "0.0.0.0:8080"
+  metrics_listen: "0.0.0.0:9090"          # /metrics /healthz, cluster-internal only
+  external_url: "https://registry.mirrors.zjusct.io"
+  trusted_proxies: ["10.0.0.0/8", "fd00::/8"]  # XFF trust (Envoy Gateway networks)
+  request_timeout: 15s
+
+harbor:
+  base_url: "https://harbor.mirrors.zjusct.io"  # or in-cluster URL; must NOT be the public gateway
+  token_path: "/service/token"
+  insecure_skip_verify: false
+  # service_account:                        # only needed if proxy projects become private
+  #   username: "robot$registry-gate+default"
+  #   password: "${HARBOR_SERVICE_ACCOUNT_PASSWORD}"
+
+gate:
+  path: "/service/token"
+  anonymous:
+    enabled: true                          # false = every pull requires login
+  anonymous_registry_scopes: deny
+  auth_failure_limit:
+    per_ip: 20/min
+    per_username: 10/min
+  fail_mode: closed                        # harbor unreachable -> 503
+  deny_message: "Image not in the anonymous pull whitelist. Visit {portal_url} to sign in and get an access token, then run: docker login {external_url}"
+  login_failed_message: "Invalid or expired access token. Visit {portal_url} to get a new one."
+
+whitelist:
+  files:
+    - /etc/registry-gate/whitelist/allows.txt   # DaoCloud allows.txt format
+    - /etc/registry-gate/whitelist/extra.list   # our own audited list, same format
+  inline: []
+  reload: true                             # hot reload; invalid file -> keep old table + alert metric
+  # Line semantics (identical to DaoCloud hack/verify-allows.sh):
+  #   host/path/**   recursive prefix
+  #   host/path/*    exactly one more segment (remainder contains no "/")
+  #   host/path      exact match
+  # Lines containing ":" are a config error (no tags).
+
+projects:
+  # harbor project -> whitelist upstream host (= first path segment of allows.txt lines).
+  # Also the "mirrored upstreams" list: scope project not in map -> 404 upstream not mirrored.
+  map:
+    docker.io: docker.io
+    hub.docker.com: docker.io
+    registry-1.docker.io: docker.io
+    ghcr.io: ghcr.io
+    quay.io: quay.io
+    nvcr.io: nvcr.io
+    registry.k8s.io: registry.k8s.io
+    registry.gitlab.com: registry.gitlab.com
+    public.ecr.aws: public.ecr.aws
+    mcr.microsoft.com: mcr.microsoft.com
+    docker.elastic.co: docker.elastic.co
+    gcr.io: gcr.io
+    k8s.gcr.io: k8s.gcr.io
+    us.gcr.io: us.gcr.io
+    lscr.io: lscr.io
+    docker.osgeo.org: docker.osgeo.org
+
+auth:
+  token:
+    issuer: "zju-mirror"
+    # the PAT signing key is auto-generated on first start and stored in
+    # sqlite - there is nothing to configure here
+    default_ttl: 180d
+    max_ttl: 365d
+
+storage:
+  sqlite:
+    path: "/var/lib/registry-gate/gate.db"  # must be on a PVC; single replica only
+  usage_retention: 90d                      # prune usage records older than this
+
+portal:
+  enabled: true
+  base_path: "/token"
+  sso:
+    oidc:                                   # campus GitLab; standard OIDC authorization-code flow
+      issuer: "https://gitlab.example.zju.edu.cn"
+      client_id: "FILL_ME"
+      client_secret: "${GATE_GITLAB_CLIENT_SECRET}"
+      scopes: ["openid"]                    # GitLab: openid is enough (username included)
+      redirect_uri: ""                      # defaults to {external_url}/token/callback; override for local dev e.g. http://localhost:8080/token/callback
+  max_tokens_per_user: 10
+
+admin:
+  enabled: true
+  base_path: "/admin"
+  github:
+    client_id: "FILL_ME"
+    client_secret: "${GATE_GITHUB_CLIENT_SECRET}"
+    allowed_users: []                       # GitHub usernames (case-insensitive)
+    allowed_orgs: ["ZJUSCT"]                # org membership via GET /user/orgs (read:org), case-insensitive
+    # access = allowed_users OR allowed_orgs; both empty -> deny everyone (fail closed)
+
+log:
+  level: info
+  format: json
+  # decision values: allow_anon_by_rule | allow_authed | allow_login_probe |
+  #                  deny_not_whitelisted | deny_bad_token | deny_no_upstream | deny_anon_disabled

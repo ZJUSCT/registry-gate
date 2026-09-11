@@ -1,0 +1,25 @@
+registry-gate is deployed.
+
+The HTTPRoute on {{ .Values.hostname }} splits traffic:
+
+  /service/token, /v2, /v2/  -> registry-gate (token endpoint + login probe)
+  /token, /admin             -> registry-gate (PAT portal, admin panel)
+  /v2/*                      -> {{ .Values.route.harborBackend.name }} (Harbor: manifests & blobs)
+  everything else            -> 404 (Harbor portal/API stay private)
+
+Users:
+
+  docker login {{ .Values.hostname }}        # PAT from {{ .Values.hostname }}{{ .Values.portal.basePath }}
+  docker pull {{ .Values.hostname }}/docker.io/library/nginx
+
+Verify:
+
+  curl -i https://{{ .Values.hostname }}/v2/   # 401 challenge from the gate
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "registry-gate.fullname" . }} 9090:9090
+  curl localhost:9090/metrics
+
+Notes:
+- config.yaml changes require a pod restart (Reloader handles this);
+  whitelist files hot-reload without one.
+- The PAT signing key and session secrets were generated on first start
+  and live in the sqlite PVC - do not delete it casually.

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: registry-gate
+description: |
+  Authz gate in front of a Docker Registry v2 token endpoint (validated
+  against Harbor pull-through cache): anonymous pulls limited to a
+  whitelist, PAT holders pull everything, admin panel for tokens.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

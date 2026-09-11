@@ -1,0 +1,58 @@
+{{define "content"}}
+<h2>User {{.Subject}}</h2>
+<p class="actions">
+  <a class="btn small" href="{{.Base}}/">&larr; Back to overview</a>
+  <form class="inline" method="post" action="{{.Base}}/users/{{.Subject}}/revoke-all">
+    <button type="submit" class="small danger">Revoke all tokens</button>
+  </form>
+</p>
+
+<h3>Tokens</h3>
+{{if .Tokens}}
+<table>
+  <thead><tr><th>JTI</th><th>Note</th><th>Issued</th><th>Expires</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {{range .Tokens}}
+    <tr>
+      <td><code>{{.JTI}}</code></td>
+      <td>{{if .Note}}{{.Note}}{{else}}<span class="muted">(no note)</span>{{end}}</td>
+      <td class="mono">{{.Issued}}</td>
+      <td class="mono">{{.Expires}}</td>
+      <td class="mono">{{if .LastUsed}}{{.LastUsed}}{{else}}never{{end}}</td>
+      <td>{{if .Revoked}}<span class="badge revoked">revoked</span>
+          {{else if not .Active}}<span class="badge expired">expired</span>
+          {{else}}<span class="badge ok">active</span>{{end}}</td>
+      <td>
+      {{if .Active}}
+        <form class="inline" method="post" action="{{$.Base}}/tokens/{{.JTI}}/revoke">
+          <button class="small danger" type="submit">Revoke</button>
+        </form>
+      {{end}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="card">This user has no tokens.</div>
+{{end}}
+
+<h3>Recent usage</h3>
+{{if .Usage}}
+<table>
+  <thead><tr><th>Time</th><th>Repository</th><th>Decision</th><th>IP</th></tr></thead>
+  <tbody>
+  {{range .Usage}}
+    <tr>
+      <td class="mono">{{.Time}}</td>
+      <td>{{if .Repo}}<code>{{.Repo}}</code>{{else}}<span class="muted">&ndash;</span>{{end}}</td>
+      <td><span class="badge">{{.Decision}}</span></td>
+      <td class="mono">{{.IP}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="card">No usage recorded for this user.</div>
+{{end}}
+{{end}}

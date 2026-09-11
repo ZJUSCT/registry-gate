@@ -1,0 +1,35 @@
+name: CI
+
+# Branch pushes and PRs run the checks. Tag pushes are intentionally not
+# triggered here: release.yml publishes artifacts from a tag without
+# re-running checks — tag a commit whose CI has already passed.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: ['**']
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Run the same checks as local development
+        run: make check

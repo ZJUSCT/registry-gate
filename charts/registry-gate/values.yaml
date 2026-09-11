@@ -1,0 +1,120 @@
+# registry-gate chart defaults (generic skeleton).
+#
+# The gate deploys next to a harbor chart in the SAME namespace and owns
+# the public mirror hostname's auth surfaces; raw /v2/* traffic goes to
+# Harbor through the same HTTPRoute:
+#
+#   /service/token, /v2, /v2/  -> registry-gate (token endpoint + probe)
+#   /token, /admin             -> registry-gate (portal + admin UI)
+#   /v2/*                      -> harbor frontend (manifests, blobs)
+#   anything else              -> 404 (Harbor portal/API stay private)
+#
+# Harbor keeps its default externalURL: the token realm it advertises is
+# built from the REQUEST Host header (scheme only comes from externalURL).
+#
+# Deployment-specific values (hostname, parentRefs, SSO, whitelist, ...)
+# belong in the environment's values file, not here.
+
+image:
+  repository: ghcr.io/zjusct/registry-gate
+  # defaults to the chart appVersion
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Public hostname of the mirror: HTTPRoute hostname, the gate's
+# external_url, and what users "docker login" against. Required.
+hostname: ""
+
+route:
+  enabled: true
+  # Required when enabled, e.g.
+  #   - name: envoy-gateway
+  #     namespace: envoy-gateway
+  #     sectionName: https
+  #     group: gateway.networking.k8s.io
+  #     kind: Gateway
+  parentRefs: []
+  # Harbor frontend service (same namespace), receiving /v2/* traffic.
+  harborBackend:
+    name: harbor
+    port: 80
+
+harbor:
+  # In-cluster base URL the gate forwards allowed token requests to. Required.
+  baseUrl: ""
+
+gate:
+  anonymous:
+    enabled: true
+  denyMessage: "Image not in the anonymous pull whitelist. Visit {portal_url} to sign in and get an access token, then run: docker login {external_url}"
+  loginFailedMessage: "Invalid or expired access token. Visit {portal_url} to get a new one."
+
+whitelist:
+  # filename -> content, rendered into a ConfigMap mounted at
+  # /etc/registry-gate/whitelist/ (directory mount: hot-reloads on
+  # ConfigMap change, no restart needed).
+  # DaoCloud allows.txt format: host/path exact | host/path/* (exactly one
+  # more segment) | host/path/** (recursive prefix). No tags.
+  files: {}
+
+projects:
+  # harbor project name -> whitelist upstream host (= first path segment
+  # of allows.txt lines). Required non-empty. Also the "mirrored
+  # upstreams" list: scopes whose project is not listed are rejected with
+  # "upstream not mirrored".
+  map: {}
+
+auth:
+  token:
+    issuer: zju-mirror
+    # the PAT signing key is auto-generated on first start and stored in
+    # sqlite - nothing to configure here
+    defaultTtl: 180d
+    maxTtl: 365d
+
+storage:
+  # sqlite database (tokens, usage records, auto-generated keys)
+  className: ""
+  size: 2Gi
+  usageRetention: 90d
+
+portal:
+  enabled: true
+  basePath: /token
+  oidc:
+    issuer: ""
+    clientId: ""
+    # the rendered config references ${GATE_GITLAB_CLIENT_SECRET}; supply
+    # it through envSecret below
+    scopes: ["openid"]
+    # defaults to https://<hostname>/token/callback
+    redirectUri: ""
+  maxTokensPerUser: 10
+
+admin:
+  enabled: true
+  basePath: /admin
+  github:
+    clientId: ""
+    allowedUsers: []
+    allowedOrgs: []
+
+envSecret:
+  # Existing secret (e.g. a SealedSecret) whose keys become environment
+  # variables substituted into the config, e.g.
+  # GATE_GITLAB_CLIENT_SECRET / GATE_GITHUB_CLIENT_SECRET.
+  existingSecret: ""
+
+# CIDRs trusted to set X-Forwarded-For (the gateway data path); client
+# IPs for rate limiting are taken from there.
+trustedProxies: []
+
+podAnnotations: {}
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: "1"
+    memory: 256Mi

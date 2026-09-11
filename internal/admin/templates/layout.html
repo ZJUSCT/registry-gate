@@ -1,0 +1,24 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} &middot; registry-gate admin</title>
+<link rel="stylesheet" href="{{.Base}}/static/style.css">
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <h1><a href="{{.Base}}/">registry-gate <span class="muted">admin</span></a></h1>
+    {{with .Subject}}<span class="who">Signed in as <strong>{{.}}</strong> (GitHub)</span>
+    <form method="post" action="{{$.Base}}/logout" class="inline">
+      <button type="submit" class="small danger">Sign out</button>
+    </form>{{end}}
+  </div>
+</header>
+<main>
+{{template "content" .}}
+</main>
+<footer class="site">registry-gate admin &mdash; Docker registry access control</footer>
+</body>
+</html>{{end}}

@@ -1,0 +1,101 @@
+name: release
+
+# Tag pipeline: build and publish all artifacts from a v* tag. Checks are
+# NOT re-run here — the tag is expected to point at a commit that already
+# passed CI on its branch (push, wait for green, then tag). The image
+# gates the chart release, so a tag whose image fails to build publishes
+# no chart.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  OCI_REGISTRY: ghcr.io
+  OCI_OWNER: ${{ github.repository_owner }}
+  CHART_PATH: charts/registry-gate
+  # `helm push` APPENDS the chart name to this path, so this stays
+  # "charts" — the artifact lands at ghcr.io/<owner>/charts/registry-gate:<version>.
+  CHART_REPO_PATH: charts
+
+jobs:
+  image:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image reference
+        run: |
+          owner_lc="${GITHUB_REPOSITORY_OWNER,,}"   # GHCR rejects uppercase in repository paths
+          echo "IMAGE=ghcr.io/${owner_lc}/registry-gate:${{ github.ref_name }}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}
+
+  chart:
+    name: Release chart
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute release version
+        # The release tag is the single source of truth: the chart version is
+        # the tag without the "v" prefix (v0.0.0 -> 0.0.0).
+        run: |
+          echo "CHART_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Stamp version and appVersion into Chart.yaml
+        # The checked-in version/appVersion fields are placeholders; each
+        # release tag (v<semver>) stamps the chart version (tag without the
+        # "v" prefix) and appVersion (the tag verbatim, which is also the
+        # image tag the chart defaults to).
+        run: |
+          sed -i "s/^version:.*/version: ${CHART_VERSION}/" "$CHART_PATH/Chart.yaml"
+          sed -i "s/^appVersion:.*/appVersion: \"${GITHUB_REF_NAME}\"/" "$CHART_PATH/Chart.yaml"
+
+      - name: Lint chart
+        run: helm lint "$CHART_PATH" -f "$CHART_PATH/ci/values.yaml" --strict
+
+      - name: Package chart
+        run: helm package "$CHART_PATH"
+
+      - name: Login to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GITHUB_TOKEN" | helm registry login "$OCI_REGISTRY" \
+            --username "${{ github.actor }}" --password-stdin
+
+      - name: Push chart
+        # ${VAR,,} lowercases: GHCR requires lowercase repository paths.
+        shell: bash
+        run: helm push "registry-gate-${CHART_VERSION}.tgz" "oci://${OCI_REGISTRY,,}/${OCI_OWNER,,}/${CHART_REPO_PATH}"

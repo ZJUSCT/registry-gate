@@ -1,0 +1,7 @@
+/config.yaml
+/registry-gate
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+dist/

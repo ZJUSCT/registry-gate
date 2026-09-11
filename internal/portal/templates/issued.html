@@ -1,0 +1,29 @@
+{{define "content"}}
+<h2>Token created</h2>
+<div class="notice"><strong>Copy it now</strong> &mdash; the token is shown
+only once and cannot be recovered.</div>
+
+<div class="card">
+  <p>Token{{with .Note}} &ldquo;{{.}}&rdquo;{{end}} for
+  <strong>{{.Subject}}</strong>, valid until {{.Expires}}.</p>
+  <p>
+    <code id="pat">{{.PAT}}</code>
+    <button type="button" class="small" onclick="copyText('pat')">Copy token</button>
+  </p>
+
+  <h3>Use it</h3>
+  <pre id="snippet">docker login {{.Registry}}
+# Username: {{.Subject}}
+# Password: the token above (paste when prompted)</pre>
+  <button type="button" class="small" onclick="copyText('snippet')">Copy snippet</button>
+</div>
+
+<p class="actions"><a class="btn" href="{{.Base}}/">Back to dashboard</a></p>
+
+<script>
+function copyText(id) {
+  var t = document.getElementById(id);
+  if (navigator.clipboard) { navigator.clipboard.writeText(t.innerText); }
+}
+</script>
+{{end}}

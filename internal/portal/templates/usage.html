@@ -1,0 +1,25 @@
+{{define "content"}}
+<h2>Your recent usage</h2>
+<p class="muted">The most recent {{.Limit}} registry requests made with your
+tokens (newest first).</p>
+{{if .Records}}
+<table>
+  <thead>
+    <tr><th>Time</th><th>Repository</th><th>Decision</th><th>IP</th></tr>
+  </thead>
+  <tbody>
+  {{range .Records}}
+    <tr>
+      <td class="mono">{{.Time}}</td>
+      <td>{{if .Repo}}<code>{{.Repo}}</code>{{else}}<span class="muted">(login probe)</span>{{end}}</td>
+      <td><span class="badge">{{.Decision}}</span></td>
+      <td class="mono">{{.IP}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="card">No usage recorded yet.</div>
+{{end}}
+<p class="actions"><a class="btn small" href="{{.Base}}/">Back to dashboard</a></p>
+{{end}}

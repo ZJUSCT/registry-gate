@@ -1,0 +1,92 @@
+{{- if not .Values.hostname }}
+{{- fail "hostname is required (public mirror hostname)" }}
+{{- end }}
+{{- if not .Values.harbor.baseUrl }}
+{{- fail "harbor.baseUrl is required (in-cluster harbor frontend URL)" }}
+{{- end }}
+{{- if and .Values.route.enabled (not .Values.route.parentRefs) }}
+{{- fail "route.parentRefs is required when route.enabled" }}
+{{- end }}
+{{- if not .Values.envSecret.existingSecret }}
+{{- fail "envSecret.existingSecret is required (provides GATE_*_SECRET env vars)" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "registry-gate.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "registry-gate.labels" . | nindent 4 }}
+spec:
+  # sqlite single-writer: exactly one replica, never scaled
+  replicas: 1
+  # RWO PVC: replace, never run two pods concurrently
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "registry-gate.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "registry-gate.labels" . | nindent 8 }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        # distroless nonroot (65532); fsGroup makes the sqlite PVC writable
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      containers:
+        - name: registry-gate
+          image: {{ include "registry-gate.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["-config", "/etc/registry-gate/config.yaml"]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+          envFrom:
+            {{- with .Values.envSecret.existingSecret }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 5
+            timeoutSeconds: 3
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 2
+            failureThreshold: 30
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            # directory mounts (no subPath) so ConfigMap updates propagate:
+            # the whitelist hot-reloads via fsnotify
+            - name: config
+              mountPath: /etc/registry-gate
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/registry-gate
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "registry-gate.fullname" . }}-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "registry-gate.fullname" . }}-data

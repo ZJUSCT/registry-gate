@@ -1,0 +1,36 @@
+# Minimal valid values for CI lint/render; the real deployment values
+# live in the mirrors repo.
+hostname: registry.example.org
+
+route:
+  parentRefs:
+    - name: gateway
+      namespace: envoy-gateway
+      sectionName: https
+      group: gateway.networking.k8s.io
+      kind: Gateway
+
+harbor:
+  baseUrl: http://harbor
+
+whitelist:
+  files:
+    allows.txt: |
+      docker.io/library/nginx
+
+projects:
+  map:
+    docker.io: docker.io
+
+portal:
+  oidc:
+    issuer: https://gitlab.example.org
+    clientId: ci
+
+admin:
+  github:
+    clientId: ci
+    allowedOrgs: [example]
+
+envSecret:
+  existingSecret: registry-gate-secrets

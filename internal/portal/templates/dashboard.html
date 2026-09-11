@@ -1,0 +1,60 @@
+{{define "content"}}
+<h2>Your access tokens</h2>
+{{if .Flash}}<div class="error">{{.Flash}}</div>{{end}}
+<p class="muted">
+  Active tokens: <strong>{{.ActiveCount}}</strong>{{if .MaxTokens}} of at most
+  {{.MaxTokens}}{{end}}. A token lets you <code>docker login</code> and pull
+  every mirrored image; anonymous pulls are limited to the public whitelist.
+</p>
+
+{{if .Tokens}}
+<table>
+  <thead>
+    <tr><th>Note</th><th>Issued</th><th>Expires</th><th>Last used</th><th>Status</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+  {{range .Tokens}}
+    <tr>
+      <td>{{if .Note}}{{.Note}}{{else}}<span class="muted">(no note)</span>{{end}}</td>
+      <td class="mono">{{.Issued}}</td>
+      <td class="mono">{{.Expires}}</td>
+      <td class="mono">{{if .LastUsed}}{{.LastUsed}}{{else}}never{{end}}</td>
+      <td>{{if .Revoked}}<span class="badge revoked">revoked</span>
+          {{else if not .Active}}<span class="badge expired">expired</span>
+          {{else}}<span class="badge ok">active</span>{{end}}</td>
+      <td>
+      {{if .Active}}
+        <form class="inline" method="post" action="{{$.Base}}/tokens/{{.JTI}}/rotate">
+          <button class="small" type="submit">Rotate</button>
+        </form>
+        <form class="inline" method="post" action="{{$.Base}}/tokens/{{.JTI}}/revoke">
+          <button class="small danger" type="submit">Revoke</button>
+        </form>
+      {{else}}&ndash;{{end}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="card">You have no tokens yet. Create one below.</div>
+{{end}}
+
+<p class="actions"><a class="btn small" href="{{.Base}}/usage">View usage log</a></p>
+
+<h3>Issue a new token</h3>
+<form class="card" method="post" action="{{.Base}}/tokens">
+  <p>
+    <label for="note">Note <span class="muted">(what is this token for?)</span></label>
+    <input type="text" id="note" name="note" size="32" maxlength="200"
+           placeholder="e.g. laptop docker">
+  </p>
+  <p>
+    <label for="ttl">Validity in days</label>
+    <input type="number" id="ttl" name="ttl" min="1"{{if .MaxTTLDays}} max="{{.MaxTTLDays}}"{{end}}
+           placeholder="{{.DefaultTTLDays}} (default)">
+    <span class="muted">Empty uses the default of {{.DefaultTTLDays}} days; maximum {{.MaxTTLDays}} days.</span>
+  </p>
+  <button type="submit">Create token</button>
+</form>
+{{end}}

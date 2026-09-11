@@ -1,0 +1,67 @@
+{{define "content"}}
+<h2>Overview</h2>
+
+<div class="cards">
+  <div class="card"><div class="num">{{.Summary.ActiveTokens}}</div><div class="label">Active tokens</div></div>
+  <div class="card"><div class="num">{{.Summary.RevokedTokens}}</div><div class="label">Revoked tokens</div></div>
+  <div class="card"><div class="num">{{.Summary.AllowedToday}}</div><div class="label">Allowed today</div></div>
+  <div class="card"><div class="num">{{.Summary.DeniedToday}}</div><div class="label">Denied today</div></div>
+</div>
+
+{{if .Summary.Decisions}}
+<h3>Decisions today</h3>
+<table>
+  <thead><tr><th>Decision</th><th class="num">Count</th></tr></thead>
+  <tbody>
+  {{range .Summary.Decisions}}
+    <tr><td><span class="badge">{{.Decision}}</span></td><td class="num">{{.Count}}</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+
+<h3>Recent usage</h3>
+{{if .Usage}}
+<table>
+  <thead><tr><th>Time</th><th>Subject</th><th>Repository</th><th>Decision</th><th>IP</th></tr></thead>
+  <tbody>
+  {{range .Usage}}
+    <tr>
+      <td class="mono">{{.Time}}</td>
+      <td>{{.Subject}}</td>
+      <td>{{if .Repo}}<code>{{.Repo}}</code>{{else}}<span class="muted">&ndash;</span>{{end}}</td>
+      <td><span class="badge">{{.Decision}}</span></td>
+      <td class="mono">{{.IP}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="card">No usage recorded{{if gt .Page 1}} on this page{{end}}.</div>
+{{end}}
+<div class="pager">
+  {{if gt .Page 1}}<a class="btn small" href="{{.Base}}/?page={{.PrevPage}}">&larr; Newer</a>{{end}}
+  <span class="info">Page {{.Page}}</span>
+  {{if .HasNext}}<a class="btn small" href="{{.Base}}/?page={{.NextPage}}">Older &rarr;</a>{{end}}
+</div>
+
+<h3>Users</h3>
+{{if .Users}}
+<table>
+  <thead><tr><th>Subject</th><th class="num">Active tokens</th><th class="num">Revoked</th><th>Last used</th><th></th></tr></thead>
+  <tbody>
+  {{range .Users}}
+    <tr>
+      <td><a href="{{$.Base}}/users/{{.Subject}}">{{.Subject}}</a></td>
+      <td class="num">{{.Active}}</td>
+      <td class="num">{{.Revoked}}</td>
+      <td class="mono">{{if .LastUsed}}{{.LastUsed}}{{else}}never{{end}}</td>
+      <td><a class="btn small" href="{{$.Base}}/users/{{.Subject}}">Details</a></td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="card">No tokens have been issued yet.</div>
+{{end}}
+{{end}}

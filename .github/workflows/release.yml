@@ -53,6 +53,8 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
 
   chart:
     name: Release chart

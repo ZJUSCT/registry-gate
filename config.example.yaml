@@ -105,6 +105,16 @@ admin:
     allowed_orgs: ["ZJUSCT"]                # org membership via GET /user/orgs (read:org), case-insensitive
     # access = allowed_users OR allowed_orgs; both empty -> deny everyone (fail closed)
 
+observability:
+  otel_logs:
+    enabled: false                          # OTLP/HTTP export of all slog records
+    endpoint: ""                            # full URL, e.g. http://collector:4318; required when enabled
+    # headers: {}                           # e.g. collector auth
+    # timeout: 10s
+    # batch: {max_queue_size: 2048, flush_interval: 1s}   # unset = SDK defaults; full queue drops, never blocks
+    service_name: ""                        # resource service.name; required when enabled
+    # service_version: ""                   # defaults to the build-injected version
+
 log:
   level: info
   format: json

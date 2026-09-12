@@ -39,7 +39,7 @@ func (s *section) get(key string) any {
 func (s *section) check() error {
 	for k := range s.m {
 		if !s.used[k] {
-			return fmt.Errorf("config: %s: unknown key %q (schema v0.5 is frozen)", s.path, k)
+			return fmt.Errorf("config: %s: unknown key %q (schema v0.6 is frozen)", s.path, k)
 		}
 	}
 	return nil
@@ -172,11 +172,11 @@ func decode(root map[string]any, cfg *Config) error {
 	known := map[string]bool{
 		"server": true, "harbor": true, "gate": true, "whitelist": true,
 		"projects": true, "auth": true, "storage": true, "portal": true,
-		"admin": true, "log": true,
+		"admin": true, "observability": true, "log": true,
 	}
 	for k := range root {
 		if !known[k] {
-			return fmt.Errorf("config: unknown top-level key %q (schema v0.5 is frozen)", k)
+			return fmt.Errorf("config: unknown top-level key %q (schema v0.6 is frozen)", k)
 		}
 	}
 	rootSec := &section{path: "", m: root, used: map[string]bool{}}
@@ -211,6 +211,9 @@ func decode(root map[string]any, cfg *Config) error {
 		return err
 	}
 	if err := decodeAdmin(rootSec, &cfg.Admin); err != nil {
+		return err
+	}
+	if err := decodeObservability(rootSec, &cfg.Observability); err != nil {
 		return err
 	}
 	if err := decodeLog(rootSec, &cfg.Log); err != nil {
@@ -483,6 +486,52 @@ func decodeLog(root *section, out *Log) error {
 		return err
 	}
 	if out.Format, err = s.str("format"); err != nil {
+		return err
+	}
+	return s.check()
+}
+
+func decodeObservability(root *section, out *Observability) error {
+	s, err := root.sub("observability")
+	if err != nil {
+		return err
+	}
+	ol, err := s.sub("otel_logs")
+	if err != nil {
+		return err
+	}
+	if out.OtelLogs.Enabled, err = ol.boolean("enabled"); err != nil {
+		return err
+	}
+	if out.OtelLogs.Endpoint, err = ol.str("endpoint"); err != nil {
+		return err
+	}
+	if out.OtelLogs.Headers, err = ol.strMap("headers"); err != nil {
+		return err
+	}
+	if out.OtelLogs.Timeout, err = ol.duration("timeout"); err != nil {
+		return err
+	}
+	if out.OtelLogs.ServiceName, err = ol.str("service_name"); err != nil {
+		return err
+	}
+	if out.OtelLogs.ServiceVersion, err = ol.str("service_version"); err != nil {
+		return err
+	}
+	batch, err := ol.sub("batch")
+	if err != nil {
+		return err
+	}
+	if out.OtelLogs.MaxQueueSize, err = batch.integer("max_queue_size"); err != nil {
+		return err
+	}
+	if out.OtelLogs.FlushInterval, err = batch.duration("flush_interval"); err != nil {
+		return err
+	}
+	if err := batch.check(); err != nil {
+		return err
+	}
+	if err := ol.check(); err != nil {
 		return err
 	}
 	return s.check()

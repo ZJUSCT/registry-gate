@@ -199,6 +199,24 @@ type Admin struct {
 	GitHub   AdminGitHub
 }
 
+// Observability is the [observability] section.
+type Observability struct {
+	OtelLogs OtelLogs
+}
+
+// OtelLogs is the [observability.otel_logs] section: OTLP/HTTP export of
+// the gate's slog records alongside stdout.
+type OtelLogs struct {
+	Enabled        bool
+	Endpoint       string // full http(s) URL; /v1/logs appended by the exporter
+	Headers        map[string]string
+	Timeout        time.Duration
+	MaxQueueSize   int
+	FlushInterval  time.Duration
+	ServiceName    string
+	ServiceVersion string // defaults to the build-injected version
+}
+
 // Log is the [log] section.
 type Log struct {
 	Level  string // debug|info|warn|error
@@ -208,16 +226,17 @@ type Log struct {
 // Config is the complete configuration. It mirrors every key of
 // config.example.yaml (v0.4).
 type Config struct {
-	Server    Server
-	Harbor    Harbor
-	Gate      Gate
-	Whitelist Whitelist
-	Projects  Projects
-	Auth      Auth
-	Storage   Storage
-	Portal    Portal
-	Admin     Admin
-	Log       Log
+	Server        Server
+	Harbor        Harbor
+	Gate          Gate
+	Whitelist     Whitelist
+	Projects      Projects
+	Auth          Auth
+	Storage       Storage
+	Portal        Portal
+	Admin         Admin
+	Observability Observability
+	Log           Log
 
 	// gateAnonConfigured records whether the [gate.anonymous] subsection
 	// carried a mapping, so a missing subsection can default

@@ -391,3 +391,34 @@ func TestAnonymousEnabledDefault(t *testing.T) {
 		})
 	}
 }
+
+func TestObservabilityValidation(t *testing.T) {
+	base := minimalConfig + `
+observability:
+  otel_logs:
+    enabled: true
+    endpoint: http://collector:4318
+    service_name: registry-gate
+`
+	if _, err := Load(writeConfig(t, base)); err != nil {
+		t.Fatalf("valid observability rejected: %v", err)
+	}
+	for name, mut := range map[string]func(string) string{
+		"no endpoint": func(s string) string {
+			return strings.Replace(s, `    endpoint: http://collector:4318
+`, ``, 1)
+		},
+		"bad endpoint scheme": func(s string) string {
+			return strings.Replace(s, `http://collector:4318`, `collector:4318`, 1)
+		},
+		"no service name": func(s string) string {
+			return strings.Replace(s, `    service_name: registry-gate`, ``, 1)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Load(writeConfig(t, mut(base))); err == nil {
+				t.Fatal("invalid observability accepted")
+			}
+		})
+	}
+}

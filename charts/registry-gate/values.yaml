@@ -112,6 +112,20 @@ envSecret:
 # IPs for rate limiting are taken from there.
 trustedProxies: []
 
+observability:
+  otel_logs:
+    # OTLP/HTTP export of the gate's structured logs (stdout output stays
+    # on regardless). Fill the endpoint per environment.
+    enabled: false
+    endpoint: ""
+    # headers: {}
+    # timeout: 10s
+    # batch:
+    #   max_queue_size: 2048
+    #   flush_interval: 1s
+    service_name: registry-gate
+    # service_version: ""                   # defaults to the image's build version
+
 podAnnotations: {}
 
 resources:

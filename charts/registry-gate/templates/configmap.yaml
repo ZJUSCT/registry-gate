@@ -91,6 +91,33 @@ data:
           - {{ . | quote }}
         {{- end }}
 
+    observability:
+      otel_logs:
+        enabled: {{ .Values.observability.otel_logs.enabled }}
+        endpoint: {{ .Values.observability.otel_logs.endpoint | quote }}
+        {{- with .Values.observability.otel_logs.headers }}
+        headers:
+        {{- range $k, $v := . }}
+          {{ $k }}: {{ $v | quote }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.observability.otel_logs.timeout }}
+        timeout: {{ . }}
+        {{- end }}
+        {{- with .Values.observability.otel_logs.batch }}
+        batch:
+          {{- with .max_queue_size }}
+          max_queue_size: {{ . }}
+          {{- end }}
+          {{- with .flush_interval }}
+          flush_interval: {{ . }}
+          {{- end }}
+        {{- end }}
+        service_name: {{ .Values.observability.otel_logs.service_name | quote }}
+        {{- with .Values.observability.otel_logs.service_version }}
+        service_version: {{ . | quote }}
+        {{- end }}
+
     log:
       level: info
       format: json

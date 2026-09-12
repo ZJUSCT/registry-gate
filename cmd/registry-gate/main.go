@@ -19,11 +19,16 @@ import (
 	"github.com/ZJUSCT/registry-gate/internal/config"
 	"github.com/ZJUSCT/registry-gate/internal/gate"
 	"github.com/ZJUSCT/registry-gate/internal/httpx"
+	"github.com/ZJUSCT/registry-gate/internal/otellogs"
 	"github.com/ZJUSCT/registry-gate/internal/portal"
 	"github.com/ZJUSCT/registry-gate/internal/store"
 	"github.com/ZJUSCT/registry-gate/internal/token"
 	"github.com/ZJUSCT/registry-gate/internal/whitelist"
 )
+
+// version is injected at build time (-ldflags "-X main.version=...");
+// "dev" for local builds.
+var version = "dev"
 
 func main() {
 	if err := run(); err != nil {
@@ -40,7 +45,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	logger := newLogger(cfg.Log)
+	logger, shutdownLogs, err := newLogger(cfg, version)
+	if err != nil {
+		return err
+	}
 	slog.SetDefault(logger)
 
 	// Whitelist (hot reload per config; SIGHUP handled internally).
@@ -221,6 +229,12 @@ func run() error {
 	if err := metricsSrv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("metrics server shutdown", "error", err.Error())
 	}
+	// Flush any pending OTel log records (bounded; dropping is fine).
+	flushCtx, flushCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer flushCancel()
+	if err := shutdownLogs(flushCtx); err != nil {
+		logger.Error("otel logs shutdown", "error", err.Error())
+	}
 	select {
 	case <-pruneDone:
 	case <-time.After(5 * time.Second):
@@ -229,10 +243,12 @@ func run() error {
 	return nil
 }
 
-// newLogger builds the slog logger requested by the [log] section.
-func newLogger(lc config.Log) *slog.Logger {
+// newLogger builds the slog logger requested by the [log] and
+// [observability.otel_logs] sections: stdout always, plus OTLP export
+// when enabled. The returned shutdown flushes pending OTel records.
+func newLogger(cfg *config.Config, buildVersion string) (*slog.Logger, func(context.Context) error, error) {
 	level := slog.LevelInfo
-	switch lc.Level {
+	switch cfg.Log.Level {
 	case "debug":
 		level = slog.LevelDebug
 	case "warn":
@@ -241,10 +257,30 @@ func newLogger(lc config.Log) *slog.Logger {
 		level = slog.LevelError
 	}
 	opts := &slog.HandlerOptions{Level: level}
-	if lc.Format == "text" {
-		return slog.New(slog.NewTextHandler(os.Stdout, opts))
+	var stdout slog.Handler
+	if cfg.Log.Format == "text" {
+		stdout = slog.NewTextHandler(os.Stdout, opts)
+	} else {
+		stdout = slog.NewJSONHandler(os.Stdout, opts)
 	}
-	return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	o := cfg.Observability.OtelLogs
+	if o.ServiceVersion == "" {
+		o.ServiceVersion = buildVersion
+	}
+	handler, shutdown, err := otellogs.Setup(otellogs.Config{
+		Enabled:        o.Enabled,
+		Endpoint:       o.Endpoint,
+		Headers:        o.Headers,
+		Timeout:        o.Timeout,
+		MaxQueueSize:   o.MaxQueueSize,
+		FlushInterval:  o.FlushInterval,
+		ServiceName:    o.ServiceName,
+		ServiceVersion: o.ServiceVersion,
+	}, stdout, level)
+	if err != nil {
+		return nil, nil, err
+	}
+	return slog.New(handler), shutdown, nil
 }
 
 // pruneLoop deletes usage records older than the retention window once a

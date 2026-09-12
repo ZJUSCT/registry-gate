@@ -178,6 +178,18 @@ func validate(c *Config) error {
 		}
 	}
 
+	if o := c.Observability.OtelLogs; o.Enabled {
+		if err := validateURL(o.Endpoint, "observability.otel_logs.endpoint"); err != nil {
+			return err
+		}
+		if o.ServiceName == "" {
+			return fmt.Errorf("config: observability.otel_logs.service_name is required when enabled")
+		}
+		if o.MaxQueueSize < 0 || o.FlushInterval < 0 {
+			return fmt.Errorf("config: observability.otel_logs.batch values must be positive")
+		}
+	}
+
 	switch c.Log.Level {
 	case "debug", "info", "warn", "error":
 	default:

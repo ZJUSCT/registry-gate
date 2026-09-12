@@ -34,13 +34,16 @@ route:
   #     group: gateway.networking.k8s.io
   #     kind: Gateway
   parentRefs: []
-  # Harbor frontend service (same namespace), receiving /v2/* traffic.
+  # Harbor service receiving /v2/* traffic. With the harbor helm chart
+  # and expose.type: ingress this is the core service (harbor-core); the
+  # chart creates no unified frontend service in that mode.
   harborBackend:
-    name: harbor
+    name: harbor-core
     port: 80
 
 harbor:
-  # In-cluster base URL the gate forwards allowed token requests to. Required.
+  # In-cluster base URL the gate forwards allowed token requests to
+  # (the harbor chart's core service, e.g. http://harbor-core). Required.
   baseUrl: ""
 
 gate:

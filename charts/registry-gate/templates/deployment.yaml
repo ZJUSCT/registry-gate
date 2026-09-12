@@ -87,6 +87,17 @@ spec:
         - name: config
           configMap:
             name: {{ include "registry-gate.fullname" . }}-config
+            # Map the whitelist keys into a whitelist/ subdirectory; the
+            # gate's config references /etc/registry-gate/whitelist/<file>.
+            # Without items the ConfigMap keys would be mounted flat and
+            # the whitelist paths would not exist.
+            items:
+              - key: config.yaml
+                path: config.yaml
+              {{- range $name, $_ := .Values.whitelist.files }}
+              - key: {{ $name }}
+                path: whitelist/{{ $name }}
+              {{- end }}
         - name: data
           persistentVolumeClaim:
             claimName: {{ include "registry-gate.fullname" . }}-data

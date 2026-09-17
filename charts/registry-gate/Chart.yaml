@@ -5,5 +5,7 @@ description: |
   against Harbor pull-through cache): anonymous pulls limited to a
   whitelist, PAT holders pull everything, admin panel for tokens.
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+# Placeholders: the release workflow (release.yml) stamps both fields from
+# the release tag; keep the lines intact so the sed patterns still match.
+version: 0.0.0
+appVersion: "0.0.0"

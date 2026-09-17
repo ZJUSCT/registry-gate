@@ -55,6 +55,13 @@ spec:
             - secretRef:
                 name: {{ . }}
             {{- end }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- range $name, $value := . }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz

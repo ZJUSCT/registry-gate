@@ -108,6 +108,15 @@ envSecret:
   # GATE_GITLAB_CLIENT_SECRET / GATE_GITHUB_CLIENT_SECRET.
   existingSecret: ""
 
+# Plaintext environment variables injected alongside the envFrom secret.
+# For non-secret settings only (outbound HTTP(S)_PROXY, NO_PROXY, ...);
+# anything credential-like belongs in the envSecret. The app honors
+# HTTP(S)_PROXY / NO_PROXY via Go's net/http.
+extraEnv: {}
+  # HTTP_PROXY: http://proxy.example.svc:7890
+  # HTTPS_PROXY: http://proxy.example.svc:7890
+  # NO_PROXY: "127.0.0.1,localhost,.svc,.cluster.local"
+
 # CIDRs trusted to set X-Forwarded-For (the gateway data path); client
 # IPs for rate limiting are taken from there.
 trustedProxies: []
